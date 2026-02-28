@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>אקדמיית אלעד רבי — לידים</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f1117; color: #e5e7eb; }
+    .badge-hot    { background:#16a34a22; color:#4ade80; border:1px solid #16a34a; }
+    .badge-avg    { background:#ca8a0422; color:#fbbf24; border:1px solid #ca8a04; }
+    .badge-weak   { background:#71717a22; color:#a1a1aa; border:1px solid #52525b; }
+    .badge-disq   { background:#dc262622; color:#f87171; border:1px solid #dc2626; }
+    .badge-exp    { background:#7c3aed22; color:#a78bfa; border:1px solid #7c3aed; }
+    .stat-card    { background:#1a1d27; border:1px solid #2d3148; }
+    table         { border-collapse: collapse; width: 100%; }
+    th            { background:#1a1d27; color:#9ca3af; font-size:0.75rem; letter-spacing:0.05em; text-transform:uppercase; padding:12px 16px; text-align:right; }
+    td            { padding:12px 16px; border-bottom:1px solid #1f2333; font-size:0.875rem; }
+    tr:hover td   { background:#1a1d2788; }
+    .filter-btn          { background:#1a1d27; border:1px solid #2d3148; color:#9ca3af; padding:6px 16px; border-radius:9999px; cursor:pointer; transition:all .2s; font-size:0.85rem; }
+    .filter-btn.active   { background:#4f46e5; border-color:#4f46e5; color:#fff; }
+    .filter-btn:hover:not(.active) { border-color:#4f46e5; color:#a5b4fc; }
+    #refresh-btn { background:#1a1d27; border:1px solid #2d3148; color:#9ca3af; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:0.8rem; }
+    #refresh-btn:hover { border-color:#4f46e5; color:#a5b4fc; }
+    .loading { color:#6b7280; text-align:center; padding:60px 0; }
+    .stage-pill { background:#1f2333; color:#6b7280; font-size:0.7rem; padding:2px 8px; border-radius:9999px; }
+  </style>
+</head>
+<body class="min-h-screen p-6">
+
+  <!-- ===== CONFIGURE THESE TWO LINES ===== -->
+  <script>
+    const SUPABASE_URL  = 'https://vjjqnxbevdimgulqvain.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqanFueGJldmRpbWd1bHF2YWluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1ODAzMjQsImV4cCI6MjA4NzE1NjMyNH0.PQmB0alaLnG83FwLhwOalIxTN1bbY0llpmSBw88GTp0';
+  </script>
+  <!-- ======================================= -->
+
+  <div class="max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-bold text-white">✂️ אקדמיית אלעד רבי</h1>
+        <p class="text-sm text-gray-500 mt-1">דשבורד לידים — עדכון אחרון: <span id="last-updated">—</span></p>
+      </div>
+      <button id="refresh-btn" onclick="loadLeads()">⟳ רענן</button>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8" id="stats-row">
+      <div class="stat-card rounded-xl p-4 text-center">
+        <div class="text-3xl font-bold text-white" id="stat-total">—</div>
+        <div class="text-xs text-gray-500 mt-1">סה"כ לידים</div>
+      </div>
+      <div class="stat-card rounded-xl p-4 text-center">
+        <div class="text-3xl font-bold text-green-400" id="stat-hot">—</div>
+        <div class="text-xs text-gray-500 mt-1">🔥 חם</div>
+      </div>
+      <div class="stat-card rounded-xl p-4 text-center">
+        <div class="text-3xl font-bold text-yellow-400" id="stat-avg">—</div>
+        <div class="text-xs text-gray-500 mt-1">⭐ ממוצע</div>
+      </div>
+      <div class="stat-card rounded-xl p-4 text-center">
+        <div class="text-3xl font-bold text-zinc-400" id="stat-weak">—</div>
+        <div class="text-xs text-gray-500 mt-1">❄️ חלש</div>
+      </div>
+      <div class="stat-card rounded-xl p-4 text-center">
+        <div class="text-3xl font-bold text-violet-400" id="stat-exp">—</div>
+        <div class="text-xs text-gray-500 mt-1">✂️ מנוסה</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-2 mb-5">
+      <button class="filter-btn active" onclick="setFilter('all', this)">הכל</button>
+      <button class="filter-btn" onclick="setFilter('hot', this)">🔥 חם</button>
+      <button class="filter-btn" onclick="setFilter('average', this)">⭐ ממוצע</button>
+      <button class="filter-btn" onclick="setFilter('weak', this)">❄️ חלש</button>
+      <button class="filter-btn" onclick="setFilter('disqualified', this)">🚫 פסול</button>
+      <button class="filter-btn" onclick="setFilter('experienced', this)">✂️ מנוסה</button>
+    </div>
+
+    <!-- Table -->
+    <div class="rounded-xl overflow-hidden border border-[#2d3148]">
+      <div id="table-container">
+        <div class="loading">טוען נתונים...</div>
+      </div>
+    </div>
+
+    <p class="text-xs text-gray-600 mt-4 text-center">מתרענן אוטומטית כל 60 שניות</p>
+  </div>
+
+  <script>
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    let allLeads = [];
+    let currentFilter = 'all';
+
+    const stageLabel = s => {
+      if (s === -1) return 'פסול';
+      if (s === 9)  return 'הושלם';
+      return `שאלה ${s + 1}`;
+    };
+
+    const categoryBadge = cat => {
+      if (!cat) return `<span class="badge-weak stage-pill">בתהליך</span>`;
+      const map = {
+        hot:          `<span class="badge-hot rounded-full px-3 py-0.5 text-xs font-semibold">🔥 חם</span>`,
+        average:      `<span class="badge-avg rounded-full px-3 py-0.5 text-xs font-semibold">⭐ ממוצע</span>`,
+        weak:         `<span class="badge-weak rounded-full px-3 py-0.5 text-xs font-semibold">❄️ חלש</span>`,
+        disqualified: `<span class="badge-disq rounded-full px-3 py-0.5 text-xs font-semibold">🚫 פסול</span>`,
+      };
+      return map[cat] || `<span class="badge-weak stage-pill">${cat}</span>`;
+    };
+
+    const fmtDate = iso => {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit', year:'2-digit',
+        hour:'2-digit', minute:'2-digit' });
+    };
+
+    const fmtPhone = p => p ? p.replace('+972', '0') : '—';
+
+    const preferredCallLabel = v => ({ zoom:'זום 💪', phone:'טלפון 📞' })[v] || v || '—';
+    const hoursLabel = v => ({ morning:'בוקר', afternoon:'צהריים', evening:'ערב' })[v] || v || '—';
+
+    async function loadLeads() {
+      try {
+        const { data, error } = await db
+          .from('leads')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        allLeads = data || [];
+        updateStats();
+        renderTable();
+        document.getElementById('last-updated').textContent =
+          new Date().toLocaleTimeString('he-IL');
+      } catch (e) {
+        document.getElementById('table-container').innerHTML =
+          `<div class="loading text-red-400">שגיאה בטעינת הנתונים: ${e.message}</div>`;
+      }
+    }
+
+    function updateStats() {
+      const t = allLeads.length;
+      const hot  = allLeads.filter(l => l.lead_category === 'hot').length;
+      const avg  = allLeads.filter(l => l.lead_category === 'average').length;
+      const weak = allLeads.filter(l => l.lead_category === 'weak').length;
+      const exp  = allLeads.filter(l => l.is_experienced).length;
+      document.getElementById('stat-total').textContent = t;
+      document.getElementById('stat-hot').textContent   = hot;
+      document.getElementById('stat-avg').textContent   = avg;
+      document.getElementById('stat-weak').textContent  = weak;
+      document.getElementById('stat-exp').textContent   = exp;
+    }
+
+    function setFilter(f, btn) {
+      currentFilter = f;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTable();
+    }
+
+    function getFiltered() {
+      if (currentFilter === 'all')         return allLeads;
+      if (currentFilter === 'experienced') return allLeads.filter(l => l.is_experienced);
+      return allLeads.filter(l => l.lead_category === currentFilter);
+    }
+
+    function renderTable() {
+      const leads = getFiltered();
+      if (!leads.length) {
+        document.getElementById('table-container').innerHTML =
+          `<div class="loading">אין לידים להצגה</div>`;
+        return;
+      }
+
+      const rows = leads.map(l => `
+        <tr>
+          <td class="font-medium text-white">${l.name || '—'}</td>
+          <td class="font-mono text-gray-400">${fmtPhone(l.phone)}</td>
+          <td class="text-center">
+            <span class="font-bold text-lg ${
+              (l.score >= 16) ? 'text-green-400' :
+              (l.score >= 10) ? 'text-yellow-400' : 'text-zinc-400'
+            }">${l.score !== null ? Number(l.score).toFixed(1) : '—'}</span>
+          </td>
+          <td>${categoryBadge(l.lead_category)}
+            ${l.is_experienced ? ' <span class="badge-exp rounded-full px-2 py-0.5 text-xs">✂️</span>' : ''}
+          </td>
+          <td class="text-center">
+            <span class="stage-pill">${stageLabel(l.stage)}</span>
+          </td>
+          <td class="text-gray-500">${preferredCallLabel(l.preferred_call)}</td>
+          <td class="text-gray-500">${hoursLabel(l.avail_hours)}</td>
+          <td class="text-gray-600 text-xs">${fmtDate(l.created_at)}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('table-container').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>שם</th>
+              <th>טלפון</th>
+              <th class="text-center">ניקוד</th>
+              <th>קטגוריה</th>
+              <th class="text-center">שלב</th>
+              <th>סוג שיחה</th>
+              <th>זמינות</th>
+              <th>נוצר</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    // Initial load + auto-refresh every 60s
+    loadLeads();
+    setInterval(loadLeads, 60000);
+  </script>
+</body>
+</html>
